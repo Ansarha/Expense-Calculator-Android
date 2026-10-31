@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Wallet / Currency Symbol -->
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M35,32 C31.686,32 29,34.686 29,38 L29,70 C29,73.314 31.686,76 35,76 L73,76 C76.314,76 79,73.314 79,70 L79,58 C79,56.895 78.105,56 77,56 L69,56 C66.791,56 65,54.209 65,52 C65,49.791 66.791,48 69,48 L77,48 C78.105,48 79,47.105 79,46 L79,38 C79,34.686 76.314,32 73,32 L35,32 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M70,50 C68.895,50 68,50.895 68,52 C68,53.105 68.895,54 70,54 C71.105,54 72,53.105 72,52 C72,50.895 71.105,50 70,50 Z" />
+</vector>

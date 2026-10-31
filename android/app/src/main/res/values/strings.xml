@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Expense Calculator</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_expenses">Expenses</string>
+    <string name="nav_settlements">Settlements</string>
+    <string name="nav_analytics">Analytics</string>
+    <string name="add_expense">Add Expense</string>
+</resources>
