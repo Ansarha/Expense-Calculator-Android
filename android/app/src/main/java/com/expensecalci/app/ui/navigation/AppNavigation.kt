@@ -138,7 +138,10 @@ fun AppNavigation(
                     onNavigate = { route -> navController.navigate(route) },
                     onDeleteExpense = { id -> viewModel.deleteExpense(id) },
                     onUpdateServerUrl = { url -> viewModel.updateServerUrl(url) },
-                    onRefresh = { viewModel.syncWithBackend() }
+                    onRefresh = { viewModel.syncWithBackend() },
+                    onPreviousMonth = { viewModel.selectPreviousMonth() },
+                    onNextMonth = { viewModel.selectNextMonth() },
+                    onSelectMonth = { month, year -> viewModel.selectMonth(month, year) }
                 )
             }
             composable(Screen.Expenses.route) {

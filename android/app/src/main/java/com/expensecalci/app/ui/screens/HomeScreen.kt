@@ -79,7 +79,10 @@ fun HomeScreen(
     onNavigate: (String) -> Unit,
     onDeleteExpense: (String) -> Unit,
     onUpdateServerUrl: (String) -> Unit = {},
-    onRefresh: () -> Unit = {}
+    onRefresh: () -> Unit = {},
+    onPreviousMonth: () -> Unit = {},
+    onNextMonth: () -> Unit = {},
+    onSelectMonth: (Int, Int) -> Unit = { _, _ -> }
 ) {
     var selectedExpense by remember { mutableStateOf<Expense?>(null) }
     var showServerDialog by remember { mutableStateOf(false) }
@@ -205,9 +208,17 @@ fun HomeScreen(
             }
         }
 
-        // Hero Balance Overview Card
+        // Hero Balance Overview Card (Monthly Total Spent)
         item {
-            BalanceOverviewCard(overview = uiState.overview)
+            BalanceOverviewCard(
+                overview = uiState.overview,
+                selectedMonth = uiState.selectedMonth,
+                selectedYear = uiState.selectedYear,
+                onPreviousMonth = onPreviousMonth,
+                onNextMonth = onNextMonth,
+                monthWiseSummaries = uiState.monthlySpendSummaries,
+                onSelectMonth = onSelectMonth
+            )
         }
 
         // Quick Action Shortcuts

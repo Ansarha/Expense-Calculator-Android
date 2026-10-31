@@ -280,6 +280,87 @@ fun AnalyticsScreen(
                 }
             }
         } else {
+            // Month-Wise Spending Breakdown Card
+            if (uiState.monthlySpendSummaries.isNotEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(18.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Text(
+                                text = "Month-Wise Spending",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+
+                            val maxSpend = uiState.monthlySpendSummaries.maxOfOrNull { it.totalAmount }?.coerceAtLeast(1.0) ?: 1.0
+
+                            uiState.monthlySpendSummaries.forEach { summary ->
+                                val ratio = (summary.totalAmount / maxSpend).toFloat().coerceIn(0f, 1f)
+                                val isCurrent = summary.month == uiState.selectedMonth && summary.year == uiState.selectedYear
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = summary.label,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                                                color = if (isCurrent) Emerald600 else MaterialTheme.colorScheme.onSurface
+                                            )
+                                            if (isCurrent) {
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(6.dp))
+                                                        .background(Emerald600.copy(alpha = 0.15f))
+                                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "Active",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = Emerald600,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 10.sp
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        Text(
+                                            text = "₹${String.format(Locale.getDefault(), "%,.2f", summary.totalAmount)}",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isCurrent) Emerald600 else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+
+                                    LinearProgressIndicator(
+                                        progress = { ratio },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(6.dp)
+                                            .clip(RoundedCornerShape(3.dp)),
+                                        color = if (isCurrent) Emerald600 else IndigoAccent,
+                                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // Category Breakdown Card
             item {
                 Card(

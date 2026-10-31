@@ -11,10 +11,12 @@ import com.expensecalci.app.model.Expense
 import com.expensecalci.app.model.ExpenseCategory
 import com.expensecalci.app.model.FinancialOverview
 import com.expensecalci.app.model.Member
+import com.expensecalci.app.model.MonthlySpendSummary
 import com.expensecalci.app.model.SettlementStatus
 import com.expensecalci.app.model.SettlementTransaction
 import com.expensecalci.app.model.SplitType
 import com.expensecalci.app.model.StabilityStatus
+import com.expensecalci.app.model.getShortMonthName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,6 +34,10 @@ data class ExpenseUiState(
     val expenses: List<Expense> = emptyList(),
     val settlements: List<SettlementTransaction> = emptyList(),
     val selectedCategory: ExpenseCategory? = null,
+    val selectedMonth: Int = 10,
+    val selectedYear: Int = 2026,
+    val monthlyTotalSpent: Double = 0.0,
+    val monthlySpendSummaries: List<MonthlySpendSummary> = emptyList(),
     val monthlyBudget: Double = 50000.0,
     val currentRoomId: String = "",
     val currentRoomName: String = "",
@@ -42,6 +48,7 @@ data class ExpenseUiState(
     val serverUrl: String = ApiClient.baseUrl,
     val overview: FinancialOverview = FinancialOverview(
         totalExpense = 0.0,
+        monthlyExpense = 0.0,
         availableBalance = 50000.0,
         adjustedBalance = 50000.0,
         toPay = 0.0,
@@ -119,9 +126,33 @@ class ExpenseViewModel(
         }
     }
 
+    fun selectMonth(month: Int, year: Int) {
+        _uiState.update { it.copy(selectedMonth = month, selectedYear = year) }
+        _uiState.update { recalculateFinances(it) }
+        if (_uiState.value.isOnline) {
+            scope.launch {
+                loadRemoteRoomData(_uiState.value.currentRoomId)
+            }
+        }
+    }
+
+    fun selectPreviousMonth() {
+        val currentM = _uiState.value.selectedMonth
+        val currentY = _uiState.value.selectedYear
+        val (newM, newY) = if (currentM == 1) 12 to (currentY - 1) else (currentM - 1) to currentY
+        selectMonth(newM, newY)
+    }
+
+    fun selectNextMonth() {
+        val currentM = _uiState.value.selectedMonth
+        val currentY = _uiState.value.selectedYear
+        val (newM, newY) = if (currentM == 12) 1 to (currentY + 1) else (currentM + 1) to currentY
+        selectMonth(newM, newY)
+    }
+
     private suspend fun loadRemoteRoomData(roomId: String) {
-        val month = 10
-        val year = 2026
+        val month = _uiState.value.selectedMonth
+        val year = _uiState.value.selectedYear
 
         // 1. Fetch Rooms
         val roomsRes = repository.getRooms()
@@ -317,7 +348,61 @@ class ExpenseViewModel(
      */
     private fun recalculateFinances(state: ExpenseUiState): ExpenseUiState {
         val currentUser = state.currentUserName
-        val totalSpent = state.expenses.sumOf { it.amount }
+
+        // Filter expenses for the selected month/year
+        val currentMonthExpenses = state.expenses.filter { exp ->
+            val parts = exp.date.trim().split("-")
+            if (parts.size >= 2) {
+                val y = parts[0].toIntOrNull()
+                val m = parts[1].toIntOrNull()
+                (y == null || y == state.selectedYear) && (m == null || m == state.selectedMonth)
+            } else true
+        }
+
+        val monthlySpent = currentMonthExpenses.sumOf { it.amount }
+        // If monthly expenses are present, primary figure is monthly spent; otherwise total of loaded expenses
+        val primarySpent = if (monthlySpent > 0.0 || state.expenses.isEmpty()) monthlySpent else state.expenses.sumOf { it.amount }
+
+        // Build Month-wise Spending Summaries (e.g. recent months)
+        val monthMap = linkedMapOf<Pair<Int, Int>, MutableList<Expense>>()
+        for (offset in -3..2) {
+            val c = java.util.Calendar.getInstance()
+            c.set(java.util.Calendar.YEAR, state.selectedYear)
+            c.set(java.util.Calendar.MONTH, state.selectedMonth - 1 + offset)
+            val m = c.get(java.util.Calendar.MONTH) + 1
+            val y = c.get(java.util.Calendar.YEAR)
+            monthMap[m to y] = mutableListOf()
+        }
+
+        state.expenses.forEach { exp ->
+            val parts = exp.date.trim().split("-")
+            if (parts.size >= 2) {
+                val y = parts[0].toIntOrNull() ?: state.selectedYear
+                val m = parts[1].toIntOrNull() ?: state.selectedMonth
+                val key = m to y
+                if (!monthMap.containsKey(key)) {
+                    monthMap[key] = mutableListOf()
+                }
+                monthMap[key]!!.add(exp)
+            } else {
+                val key = state.selectedMonth to state.selectedYear
+                if (!monthMap.containsKey(key)) {
+                    monthMap[key] = mutableListOf()
+                }
+                monthMap[key]!!.add(exp)
+            }
+        }
+
+        val monthSummaries = monthMap.map { (my, exps) ->
+            val (m, y) = my
+            MonthlySpendSummary(
+                month = m,
+                year = y,
+                label = "${getShortMonthName(m)} $y",
+                totalAmount = exps.sumOf { it.amount },
+                count = exps.size
+            )
+        }.sortedWith(compareBy<MonthlySpendSummary> { it.year }.thenBy { it.month })
 
         // Compute net balance per member
         val netBalances = mutableMapOf<String, Double>()
@@ -399,7 +484,7 @@ class ExpenseViewModel(
         val toPay = if (userNet < 0) abs(userNet) else 0.0
         val toReceive = if (userNet > 0) userNet else 0.0
 
-        val available = state.monthlyBudget - totalSpent
+        val available = state.monthlyBudget - primarySpent
         val adjusted = available + toReceive - toPay
 
         val status = when {
@@ -409,7 +494,8 @@ class ExpenseViewModel(
         }
 
         val overview = FinancialOverview(
-            totalExpense = totalSpent,
+            totalExpense = primarySpent,
+            monthlyExpense = monthlySpent,
             availableBalance = available,
             adjustedBalance = adjusted,
             toPay = toPay,
@@ -419,6 +505,8 @@ class ExpenseViewModel(
 
         return state.copy(
             overview = overview,
+            monthlyTotalSpent = monthlySpent,
+            monthlySpendSummaries = monthSummaries,
             settlements = computedSettlements
         )
     }
