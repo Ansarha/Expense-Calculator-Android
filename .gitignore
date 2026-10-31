@@ -46,3 +46,6 @@ Thumbs.db
 # Keystore files
 *.jks
 *.keystore
+
+# GitHub CLI portable
+gh_cli/
