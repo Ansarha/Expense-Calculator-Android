@@ -1,4 +1,4 @@
-﻿package com.expensecalci.app.data.api
+package com.expensecalci.app.data.api
 
 import retrofit2.Response
 import retrofit2.http.Body
@@ -11,9 +11,12 @@ import retrofit2.http.Query
 
 interface ExpenseApiService {
 
-    // 0. Health
-    @GET("health")
+    // 0. System Health
+    @GET("/api-status")
     suspend fun healthCheck(): Response<Map<String, Any>>
+
+    @GET("/health")
+    suspend fun healthCheckFallback(): Response<Map<String, Any>>
 
     // 1. Auth
     @POST("auth/login")
@@ -63,7 +66,7 @@ interface ExpenseApiService {
         @Path("roomId") roomId: String,
         @Query("month") month: Int? = null,
         @Query("year") year: Int? = null
-    ): Response<ApiResponse<List<ExpenseDto>>>
+    ): Response<ApiResponse<com.google.gson.JsonElement>>
 
     @POST("rooms/{roomId}/expenses")
     suspend fun createExpense(
@@ -90,7 +93,7 @@ interface ExpenseApiService {
         @Path("roomId") roomId: String,
         @Query("month") month: Int? = null,
         @Query("year") year: Int? = null
-    ): Response<ApiResponse<List<MemberBalanceDto>>>
+    ): Response<ApiResponse<com.google.gson.JsonElement>>
 
     @GET("rooms/{roomId}/settlements")
     suspend fun getSettlements(
@@ -98,6 +101,11 @@ interface ExpenseApiService {
         @Query("month") month: Int? = null,
         @Query("year") year: Int? = null
     ): Response<ApiResponse<List<SettlementDto>>>
+
+    @POST("rooms/{roomId}/settlement/recalculate")
+    suspend fun recalculateSettlements(
+        @Path("roomId") roomId: String
+    ): Response<ApiResponse<com.google.gson.JsonElement>>
 
     @POST("rooms/{roomId}/settlements/{settlementId}/mark-paid")
     suspend fun markSettlementPaid(

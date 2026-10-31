@@ -46,6 +46,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -101,6 +102,18 @@ fun AddExpenseScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showAddMemberDialog by remember { mutableStateOf(false) }
     var newMemberName by remember { mutableStateOf("") }
+
+    LaunchedEffect(uiState.members) {
+        if (uiState.members.isNotEmpty()) {
+            if (paidBy.isBlank() || uiState.members.none { it.name == paidBy }) {
+                paidBy = uiState.members.first().name
+            }
+            if (selectedParticipants.isEmpty() || (selectedParticipants.size == 1 && selectedParticipants.first() == "You")) {
+                selectedParticipants.clear()
+                selectedParticipants.addAll(uiState.members.map { it.name })
+            }
+        }
+    }
 
     val parsedAmount = amountText.toDoubleOrNull() ?: 0.0
     val perPersonShare = if (selectedParticipants.isNotEmpty() && parsedAmount > 0.0) {

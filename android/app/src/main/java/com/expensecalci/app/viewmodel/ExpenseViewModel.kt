@@ -67,8 +67,37 @@ class ExpenseViewModel(
             val isHealthy = repository.checkServerHealth()
 
             if (isHealthy) {
-                _uiState.update { it.copy(isOnline = true) }
-                loadRemoteRoomData(_uiState.value.currentRoomId)
+                // Ensure authentication on backend
+                val authRes = repository.ensureAuthenticated()
+                val currentUserName = authRes.getOrNull()?.user?.name ?: "Ansarha"
+
+                _uiState.update { it.copy(isOnline = true, currentUserName = currentUserName) }
+
+                // Fetch rooms from backend
+                val roomsRes = repository.getRooms()
+                val rooms = roomsRes.getOrNull() ?: emptyList()
+
+                val activeRoom = if (rooms.isNotEmpty()) {
+                    rooms.first()
+                } else {
+                    // Create default room on backend if none exists
+                    val createRes = repository.createRoom("Apartment 101", "Shared flat")
+                    createRes.getOrNull()
+                }
+
+                if (activeRoom != null) {
+                    val updatedRooms = if (rooms.isEmpty()) listOf(activeRoom) else rooms
+                    _uiState.update {
+                        it.copy(
+                            rooms = updatedRooms,
+                            currentRoomId = activeRoom.id.toString(),
+                            currentRoomName = activeRoom.name
+                        )
+                    }
+                    loadRemoteRoomData(activeRoom.id.toString())
+                } else {
+                    _uiState.update { it.copy(isLoading = false) }
+                }
             } else {
                 _uiState.update { it.copy(isOnline = false, isLoading = false) }
             }
@@ -98,44 +127,54 @@ class ExpenseViewModel(
         val roomsRes = repository.getRooms()
         val rooms = roomsRes.getOrNull() ?: _uiState.value.rooms
 
-        // 2. Fetch Members
+        // 2. Fetch Members directly from API
         val membersRes = repository.getRoomMembers(roomId)
-        val members = membersRes.getOrNull() ?: _uiState.value.members
+        val members = membersRes.getOrNull() ?: emptyList()
 
-        // 3. Fetch Expenses
+        // 3. Fetch Expenses directly from API
         val expensesRes = repository.getRoomExpenses(roomId, month, year)
-        val expenses = expensesRes.getOrNull() ?: _uiState.value.expenses
+        val expenses = expensesRes.getOrNull() ?: emptyList()
 
-        // 4. Fetch Settlements
+        // 4. Trigger recalculation & Fetch Settlements directly from API
+        repository.recalculateSettlements(roomId)
         val settlementsRes = repository.getSettlements(roomId, month, year)
-        val settlements = settlementsRes.getOrNull()
+        val settlements = settlementsRes.getOrNull() ?: emptyList()
 
         _uiState.update { state ->
             val updated = state.copy(
                 rooms = rooms,
-                members = if (members.isNotEmpty()) members else state.members,
-                expenses = if (expenses.isNotEmpty()) expenses else state.expenses,
+                members = members,
+                expenses = expenses,
                 isLoading = false
             )
-            val finalState = recalculateFinances(updated)
-            if (settlements != null && settlements.isNotEmpty()) {
-                finalState.copy(settlements = settlements)
+            val calculated = recalculateFinances(updated)
+            if (settlements.isNotEmpty()) {
+                calculated.copy(settlements = settlements)
             } else {
-                finalState
+                calculated
             }
         }
     }
 
-    fun addMember(name: String) {
+    fun addMember(name: String, mobile: String? = null) {
         val clean = name.trim()
         if (clean.isBlank()) return
-        _uiState.update { state ->
-            if (state.members.none { it.name.equals(clean, ignoreCase = true) }) {
-                val newMember = Member(id = (System.currentTimeMillis() % 100000).toString(), name = clean)
-                val updatedState = state.copy(members = state.members + newMember)
-                recalculateFinances(updatedState)
-            } else {
-                state
+
+        if (_uiState.value.isOnline) {
+            scope.launch {
+                _uiState.update { it.copy(isLoading = true) }
+                repository.addMember(_uiState.value.currentRoomId, clean, mobile)
+                loadRemoteRoomData(_uiState.value.currentRoomId)
+            }
+        } else {
+            _uiState.update { state ->
+                if (state.members.none { it.name.equals(clean, ignoreCase = true) }) {
+                    val newMember = Member(id = (System.currentTimeMillis() % 100000).toString(), name = clean)
+                    val updatedState = state.copy(members = state.members + newMember)
+                    recalculateFinances(updatedState)
+                } else {
+                    state
+                }
             }
         }
     }
@@ -161,26 +200,9 @@ class ExpenseViewModel(
         val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
         val today = dateFormat.format(Date())
 
-        val newExpense = Expense(
-            title = title,
-            amount = amount,
-            category = category,
-            paidBy = paidBy,
-            splitType = splitType,
-            participants = if (participants.isEmpty()) _uiState.value.members.map { it.name } else participants,
-            date = today,
-            notes = notes
-        )
-
-        _uiState.update { state ->
-            val updatedList = listOf(newExpense) + state.expenses
-            val updatedState = state.copy(expenses = updatedList)
-            recalculateFinances(updatedState)
-        }
-
-        // Post to backend if online
         if (_uiState.value.isOnline) {
             scope.launch {
+                _uiState.update { it.copy(isLoading = true) }
                 val catId = when (category) {
                     ExpenseCategory.FOOD -> 1
                     ExpenseCategory.UTILITIES -> 2
@@ -191,46 +213,66 @@ class ExpenseViewModel(
                     ExpenseCategory.MISCELLANEOUS -> 8
                 }
 
-                val payerMember = _uiState.value.members.find { it.name == paidBy }
-                val payerId = payerMember?.id?.toIntOrNull() ?: 1
+                val payerMember = _uiState.value.members.find { it.name.equals(paidBy, ignoreCase = true) }
+                val payerId = payerMember?.id?.toIntOrNull() ?: _uiState.value.members.firstOrNull()?.id?.toIntOrNull() ?: 1
 
-                val shares = participants.mapNotNull { pName ->
-                    val mem = _uiState.value.members.find { it.name == pName }
-                    mem?.id?.toIntOrNull()?.let { mId ->
-                        ExpenseShareDto(memberId = mId, shareValue = amount / participants.size)
-                    }
+                val splitStr = when (splitType) {
+                    SplitType.PERCENTAGE -> "percentage"
+                    SplitType.CUSTOM -> "custom"
+                    SplitType.OCCUPANCY_DAILY -> "daily_proration"
+                    else -> "equal"
                 }
 
                 val req = CreateExpenseRequest(
                     title = title,
                     amount = amount,
-                    payerMemberId = payerId,
+                    paidBy = payerId,
                     categoryId = catId,
-                    splitType = when (splitType) {
-                        SplitType.PERCENTAGE -> "percentage"
-                        SplitType.CUSTOM -> "exact"
-                        SplitType.OCCUPANCY_DAILY -> "prorated_days"
-                        else -> "equal"
-                    },
+                    splitType = splitStr,
                     expenseDate = today,
-                    notes = notes,
-                    shares = shares
+                    description = notes,
+                    notes = notes
                 )
-                repository.createExpense(_uiState.value.currentRoomId, req)
+
+                val res = repository.createExpense(_uiState.value.currentRoomId, req)
+                if (res.isSuccess) {
+                    loadRemoteRoomData(_uiState.value.currentRoomId)
+                } else {
+                    _uiState.update { it.copy(isLoading = false) }
+                }
+            }
+        } else {
+            // Offline / Local Mode
+            val newExpense = Expense(
+                title = title,
+                amount = amount,
+                category = category,
+                paidBy = paidBy,
+                splitType = splitType,
+                participants = if (participants.isEmpty()) _uiState.value.members.map { it.name } else participants,
+                date = today,
+                notes = notes
+            )
+            _uiState.update { state ->
+                val updatedList = listOf(newExpense) + state.expenses
+                val updatedState = state.copy(expenses = updatedList)
+                recalculateFinances(updatedState)
             }
         }
     }
 
     fun deleteExpense(expenseId: String) {
-        _uiState.update { state ->
-            val updatedList = state.expenses.filterNot { it.id == expenseId }
-            val updatedState = state.copy(expenses = updatedList)
-            recalculateFinances(updatedState)
-        }
-
         if (_uiState.value.isOnline) {
             scope.launch {
+                _uiState.update { it.copy(isLoading = true) }
                 repository.deleteExpense(_uiState.value.currentRoomId, expenseId)
+                loadRemoteRoomData(_uiState.value.currentRoomId)
+            }
+        } else {
+            _uiState.update { state ->
+                val updatedList = state.expenses.filterNot { it.id == expenseId }
+                val updatedState = state.copy(expenses = updatedList)
+                recalculateFinances(updatedState)
             }
         }
     }
@@ -242,27 +284,29 @@ class ExpenseViewModel(
     fun markSettlementPaid(settlementId: String) {
         val currentTx = _uiState.value.settlements.find { it.id == settlementId }
 
-        _uiState.update { state ->
-            val updated = state.settlements.map {
-                if (it.id == settlementId) {
-                    val nextStatus = when (it.status) {
-                        SettlementStatus.PENDING -> SettlementStatus.PAID
-                        SettlementStatus.PAID -> SettlementStatus.CONFIRMED
-                        else -> it.status
-                    }
-                    it.copy(status = nextStatus)
-                } else it
-            }
-            state.copy(settlements = updated)
-        }
-
         if (_uiState.value.isOnline && currentTx != null) {
             scope.launch {
+                _uiState.update { it.copy(isLoading = true) }
                 if (currentTx.status == SettlementStatus.PENDING) {
                     repository.markSettlementPaid(_uiState.value.currentRoomId, settlementId)
                 } else if (currentTx.status == SettlementStatus.PAID) {
                     repository.confirmSettlement(_uiState.value.currentRoomId, settlementId)
                 }
+                loadRemoteRoomData(_uiState.value.currentRoomId)
+            }
+        } else {
+            _uiState.update { state ->
+                val updated = state.settlements.map {
+                    if (it.id == settlementId) {
+                        val nextStatus = when (it.status) {
+                            SettlementStatus.PENDING -> SettlementStatus.PAID
+                            SettlementStatus.PAID -> SettlementStatus.CONFIRMED
+                            else -> it.status
+                        }
+                        it.copy(status = nextStatus)
+                    } else it
+                }
+                state.copy(settlements = updated)
             }
         }
     }

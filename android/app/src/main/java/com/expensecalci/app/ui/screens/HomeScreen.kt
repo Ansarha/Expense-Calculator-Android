@@ -148,7 +148,7 @@ fun HomeScreen(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (uiState.isOnline) "API Online" else "Local Mode",
+                        text = if (uiState.isOnline) "🟢 Vercel Online" else "Offline / Local",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         color = if (uiState.isOnline) Emerald600 else WarningAmber
@@ -402,7 +402,7 @@ fun HomeScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        text = "Connect to your running FastAPI backend (from Postman collection).",
+                        text = "Connect to your cloud or local FastAPI backend (Default: Vercel Cloud).",
                         style = MaterialTheme.typography.bodySmall,
                         color = Slate400
                     )
@@ -416,29 +416,41 @@ fun HomeScreen(
                         shape = RoundedCornerShape(12.dp)
                     )
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Button(
-                            onClick = { inputServerUrl = ApiClient.EMULATOR_URL },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            onClick = { inputServerUrl = ApiClient.VERCEL_CLOUD_URL },
+                            colors = ButtonDefaults.buttonColors(containerColor = Emerald600.copy(alpha = 0.15f)),
                             shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                            modifier = Modifier.weight(1f)
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Emulator", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.labelSmall)
+                            Text("☁️ Vercel Cloud (explicitto.vercel.app)", color = Emerald600, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                         }
-                        Button(
-                            onClick = { inputServerUrl = ApiClient.LOCALHOST_URL },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Localhost", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.labelSmall)
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            Button(
+                                onClick = { inputServerUrl = ApiClient.EMULATOR_URL },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("📱 Emulator", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.labelSmall)
+                            }
+                            Button(
+                                onClick = { inputServerUrl = ApiClient.LOCALHOST_URL },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("💻 Localhost", color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.labelSmall)
+                            }
                         }
                     }
 
                     Text(
-                        text = "Status: ${if (uiState.isOnline) "🟢 Connected" else "🟡 Offline / Using Local Data"}",
+                        text = "Status: ${if (uiState.isOnline) "🟢 Connected to API" else "🟡 Offline / Using Local Mode"}",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold
                     )

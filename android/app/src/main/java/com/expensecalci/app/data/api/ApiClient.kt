@@ -1,4 +1,4 @@
-﻿package com.expensecalci.app.data.api
+package com.expensecalci.app.data.api
 
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
@@ -9,11 +9,13 @@ import java.util.concurrent.TimeUnit
 
 object ApiClient {
 
-    // Default to 10.0.2.2 for Android Emulator, or localhost for port-forwarded devices
+    // Cloud Vercel deployment URL (default)
+    const val VERCEL_CLOUD_URL = "https://explicitto.vercel.app/api/v1/"
+    // Local / Emulator fallback URLs
     const val EMULATOR_URL = "http://10.0.2.2:8000/api/v1/"
     const val LOCALHOST_URL = "http://localhost:8000/api/v1/"
 
-    var baseUrl: String = EMULATOR_URL
+    var baseUrl: String = VERCEL_CLOUD_URL
         private set
 
     var authToken: String? = null
@@ -53,9 +55,9 @@ object ApiClient {
         OkHttpClient.Builder()
             .addInterceptor(authInterceptor)
             .addInterceptor(loggingInterceptor)
-            .connectTimeout(5, TimeUnit.SECONDS)
-            .readTimeout(10, TimeUnit.SECONDS)
-            .writeTimeout(10, TimeUnit.SECONDS)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
             .build()
     }
 

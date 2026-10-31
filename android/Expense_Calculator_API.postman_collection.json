@@ -8,12 +8,12 @@
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:8000/api/v1",
+      "value": "https://explicitto.vercel.app/api/v1",
       "type": "string"
     },
     {
       "key": "rootUrl",
-      "value": "http://localhost:8000",
+      "value": "https://explicitto.vercel.app",
       "type": "string"
     },
     {
