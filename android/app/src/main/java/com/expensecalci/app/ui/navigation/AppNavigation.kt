@@ -32,6 +32,7 @@ import com.expensecalci.app.ui.screens.AddExpenseScreen
 import com.expensecalci.app.ui.screens.AnalyticsScreen
 import com.expensecalci.app.ui.screens.ExpensesScreen
 import com.expensecalci.app.ui.screens.HomeScreen
+import com.expensecalci.app.ui.screens.LoginScreen
 import com.expensecalci.app.ui.screens.SettlementScreen
 import com.expensecalci.app.ui.theme.Emerald600
 import com.expensecalci.app.ui.theme.Slate400
@@ -52,8 +53,17 @@ fun AppNavigation(
 
     val showBottomBar = currentRoute != Screen.AddExpense.route
 
-    Scaffold(
-        bottomBar = {
+    if (!uiState.isAuthenticated) {
+        LoginScreen(
+            uiState = uiState,
+            onLogin = { emailOrMobile, password -> viewModel.login(emailOrMobile, password) },
+            onRegister = { name, email, password, mobile -> viewModel.register(name, email, password, mobile) },
+            onQuickDemoLogin = { viewModel.quickDemoLogin() },
+            onUpdateServerUrl = { url -> viewModel.updateServerUrl(url) }
+        )
+    } else {
+        Scaffold(
+            bottomBar = {
             AnimatedVisibility(
                 visible = showBottomBar,
                 enter = slideInVertically(initialOffsetY = { it }),
@@ -141,7 +151,8 @@ fun AppNavigation(
                     onRefresh = { viewModel.syncWithBackend() },
                     onPreviousMonth = { viewModel.selectPreviousMonth() },
                     onNextMonth = { viewModel.selectNextMonth() },
-                    onSelectMonth = { month, year -> viewModel.selectMonth(month, year) }
+                    onSelectMonth = { month, year -> viewModel.selectMonth(month, year) },
+                    onLogout = { allDevices -> viewModel.logout(allDevices) }
                 )
             }
             composable(Screen.Expenses.route) {
@@ -172,4 +183,5 @@ fun AppNavigation(
             }
         }
     }
+}
 }

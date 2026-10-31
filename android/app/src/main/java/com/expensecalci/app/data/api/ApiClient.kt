@@ -20,6 +20,10 @@ object ApiClient {
 
     var authToken: String? = null
 
+    fun clearAuth() {
+        authToken = null
+    }
+
     private var retrofit: Retrofit? = null
     private var service: ExpenseApiService? = null
 

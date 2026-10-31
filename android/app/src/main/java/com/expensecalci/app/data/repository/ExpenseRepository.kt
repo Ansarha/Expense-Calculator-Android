@@ -46,7 +46,7 @@ class ExpenseRepository(
     }
 
     suspend fun ensureAuthenticated(
-        email: String = "ansarha7456@gmail.com",
+        email: String = "ansarha@gmail.com",
         password: String = "Password@123",
         name: String = "Ansarha",
         mobile: String = "9876543210"
@@ -78,10 +78,113 @@ class ExpenseRepository(
                 return@withContext Result.success(tokenResp)
             }
 
-            Result.failure(Exception(loginRes.message() ?: "Authentication failed"))
+            val cleanMsg = cleanErrorMessage(loginRes.errorBody()?.string(), "Authentication failed. Please check credentials.")
+            Result.failure(Exception(cleanMsg))
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception("Unable to connect to server. Please check your network."))
         }
+    }
+
+    private fun cleanErrorMessage(rawError: String?, fallback: String): String {
+        if (rawError.isNullOrBlank()) return fallback
+        try {
+            val jsonElem = com.google.gson.JsonParser.parseString(rawError)
+            if (jsonElem.isJsonObject) {
+                val obj = jsonElem.asJsonObject
+                if (obj.has("message") && !obj.get("message").isJsonNull) {
+                    val msg = obj.get("message").asString.trim()
+                    if (msg.isNotEmpty() && !msg.startsWith("{") && !msg.startsWith("[")) {
+                        return msg
+                    }
+                }
+                if (obj.has("detail") && !obj.get("detail").isJsonNull) {
+                    val detail = obj.get("detail")
+                    if (detail.isJsonPrimitive) {
+                        val dStr = detail.asString.trim()
+                        if (dStr.isNotEmpty() && !dStr.startsWith("{") && !dStr.startsWith("[")) {
+                            return dStr
+                        }
+                    } else if (detail.isJsonArray) {
+                        val firstErr = detail.asJsonArray.firstOrNull()
+                        if (firstErr != null && firstErr.isJsonObject && firstErr.asJsonObject.has("msg")) {
+                            return firstErr.asJsonObject.get("msg").asString
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        val trimmed = rawError.trim()
+        if (!trimmed.startsWith("{") && !trimmed.startsWith("[") && !trimmed.contains("\"") && trimmed.length < 80) {
+            return trimmed
+        }
+        return fallback
+    }
+
+    suspend fun login(emailOrMobile: String, password: String): Result<TokenResponse> = withContext(Dispatchers.IO) {
+        try {
+            val isEmail = emailOrMobile.contains("@")
+            val req = if (isEmail) {
+                LoginRequest(email = emailOrMobile.trim(), password = password)
+            } else {
+                LoginRequest(mobile = emailOrMobile.trim(), password = password)
+            }
+            val res = apiService.login(req)
+            if (res.isSuccessful && res.body()?.data != null) {
+                val tokenResp = res.body()!!.data!!
+                ApiClient.authToken = tokenResp.accessToken
+                Result.success(tokenResp)
+            } else {
+                val errorMsg = cleanErrorMessage(res.errorBody()?.string(), "Invalid email or password. Please try again.")
+                Result.failure(Exception(errorMsg))
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception("Unable to connect to server. Please try again."))
+        }
+    }
+
+    suspend fun register(
+        name: String,
+        email: String,
+        password: String,
+        mobile: String
+    ): Result<TokenResponse> = withContext(Dispatchers.IO) {
+        try {
+            val req = RegisterRequest(
+                name = name.trim(),
+                email = email.trim(),
+                password = password,
+                mobile = mobile.trim()
+            )
+            val res = apiService.register(req)
+            if (res.isSuccessful && res.body()?.data != null) {
+                val tokenResp = res.body()!!.data!!
+                ApiClient.authToken = tokenResp.accessToken
+                Result.success(tokenResp)
+            } else {
+                val errorMsg = cleanErrorMessage(res.errorBody()?.string(), "Registration failed. Email or mobile may already be in use.")
+                Result.failure(Exception(errorMsg))
+            }
+        } catch (e: Exception) {
+            Result.failure(Exception("Unable to connect to server. Please try again."))
+        }
+    }
+
+    suspend fun logout(allDevices: Boolean = false): Result<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            if (!ApiClient.authToken.isNullOrBlank()) {
+                if (allDevices) {
+                    apiService.logoutAll()
+                } else {
+                    apiService.logout()
+                }
+            }
+        } catch (_: Exception) {
+            // Even if remote network fails, clear local auth
+        } finally {
+            ApiClient.clearAuth()
+        }
+        Result.success(true)
     }
 
     suspend fun getRooms(): Result<List<RoomDto>> = withContext(Dispatchers.IO) {

@@ -28,6 +28,12 @@ interface ExpenseApiService {
     @GET("auth/me")
     suspend fun getCurrentUser(): Response<ApiResponse<UserDto>>
 
+    @POST("auth/logout")
+    suspend fun logout(): Response<ApiResponse<Map<String, Any>>>
+
+    @POST("auth/logout-all")
+    suspend fun logoutAll(): Response<ApiResponse<Map<String, Any>>>
+
     // 2. Rooms
     @GET("rooms")
     suspend fun getRooms(): Response<ApiResponse<List<RoomDto>>>

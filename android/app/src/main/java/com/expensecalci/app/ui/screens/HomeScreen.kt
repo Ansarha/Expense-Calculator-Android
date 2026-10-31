@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
@@ -33,11 +34,14 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -63,6 +67,7 @@ import com.expensecalci.app.ui.components.ExpenseItemCard
 import com.expensecalci.app.ui.navigation.Screen
 import com.expensecalci.app.ui.theme.Emerald500
 import com.expensecalci.app.ui.theme.Emerald600
+import com.expensecalci.app.ui.theme.ExpenseRed
 import com.expensecalci.app.ui.theme.IndigoAccent
 import com.expensecalci.app.ui.theme.Slate400
 import com.expensecalci.app.ui.theme.Slate900
@@ -82,11 +87,15 @@ fun HomeScreen(
     onRefresh: () -> Unit = {},
     onPreviousMonth: () -> Unit = {},
     onNextMonth: () -> Unit = {},
-    onSelectMonth: (Int, Int) -> Unit = { _, _ -> }
+    onSelectMonth: (Int, Int) -> Unit = { _, _ -> },
+    onLogout: (Boolean) -> Unit = {}
 ) {
     var selectedExpense by remember { mutableStateOf<Expense?>(null) }
     var showServerDialog by remember { mutableStateOf(false) }
     var inputServerUrl by remember { mutableStateOf(uiState.serverUrl) }
+    var showLogoutDialog by remember { mutableStateOf(false) }
+    var logoutAllDevices by remember { mutableStateOf(false) }
+    var showProfileSheet by remember { mutableStateOf(false) }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -131,38 +140,61 @@ fun HomeScreen(
                     )
                 }
 
-                // Server Status Pill
+                // Server Status & Logout Row
                 Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(
-                            if (uiState.isOnline) Emerald600.copy(alpha = 0.12f)
-                            else WarningAmber.copy(alpha = 0.12f)
-                        )
-                        .clickable { showServerDialog = true }
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // Server Status Pill
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                if (uiState.isOnline) Emerald600.copy(alpha = 0.12f)
+                                else WarningAmber.copy(alpha = 0.12f)
+                            )
+                            .clickable { showServerDialog = true }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(if (uiState.isOnline) Emerald600 else WarningAmber)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (uiState.isOnline) "🟢 Online" else "Offline",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (uiState.isOnline) Emerald600 else WarningAmber
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Server Settings",
+                            tint = if (uiState.isOnline) Emerald600 else WarningAmber,
+                            modifier = Modifier.size(12.dp)
+                        )
+                    }
+
+                    // Logout Icon Button
                     Box(
                         modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(if (uiState.isOnline) Emerald600 else WarningAmber)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = if (uiState.isOnline) "🟢 Vercel Online" else "Offline / Local",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = if (uiState.isOnline) Emerald600 else WarningAmber
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "Server Settings",
-                        tint = if (uiState.isOnline) Emerald600 else WarningAmber,
-                        modifier = Modifier.size(12.dp)
-                    )
+                            .size(32.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(ExpenseRed.copy(alpha = 0.12f))
+                            .clickable { showLogoutDialog = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Logout,
+                            contentDescription = "Log Out",
+                            tint = ExpenseRed,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
         }
@@ -195,12 +227,13 @@ fun HomeScreen(
                     modifier = Modifier
                         .size(44.dp)
                         .clip(CircleShape)
-                        .background(Emerald600),
+                        .background(Emerald600)
+                        .clickable { showProfileSheet = true },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.AccountBalanceWallet,
-                        contentDescription = "Wallet",
+                        contentDescription = "User Profile & Session",
                         tint = Color.White,
                         modifier = Modifier.size(24.dp)
                     )
@@ -244,80 +277,7 @@ fun HomeScreen(
             }
         }
 
-        // Budget Utilization Strip
-        item {
-            val totalSpent = uiState.overview.totalExpense
-            val budget = uiState.monthlyBudget
-            val ratio = if (budget > 0) (totalSpent / budget).toFloat().coerceIn(0f, 1f) else 0f
-            val percentUsed = (ratio * 100).toInt()
 
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.TrendingUp,
-                                contentDescription = null,
-                                tint = Emerald600,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Monthly Budget Utilization",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Text(
-                            text = "$percentUsed% spent",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (ratio > 0.85f) Color(0xFFEF4444) else Emerald600
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    LinearProgressIndicator(
-                        progress = { ratio },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(4.dp)),
-                        color = if (ratio > 0.85f) Color(0xFFEF4444) else Emerald500,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "₹${String.format(Locale.getDefault(), "%,.0f", totalSpent)} spent",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Slate400
-                        )
-                        Text(
-                            text = "₹${String.format(Locale.getDefault(), "%,.0f", budget - totalSpent)} remaining",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Slate400,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-            }
-        }
 
         // Recent Expenses Header
         item {
@@ -485,6 +445,143 @@ fun HomeScreen(
                 }
             }
         )
+    }
+
+    // Logout Confirmation Dialog
+    if (showLogoutDialog) {
+        AlertDialog(
+            onDismissRequest = { showLogoutDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Logout,
+                    contentDescription = null,
+                    tint = ExpenseRed,
+                    modifier = Modifier.size(28.dp)
+                )
+            },
+            title = {
+                Text("Log Out", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Are you sure you want to log out of ${uiState.currentUserName}? All session tokens and cached room data will be cleared.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { logoutAllDevices = !logoutAllDevices }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = logoutAllDevices,
+                            onCheckedChange = { logoutAllDevices = it },
+                            colors = CheckboxDefaults.colors(checkedColor = ExpenseRed)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            "Log out from all devices",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showLogoutDialog = false
+                        onLogout(logoutAllDevices)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed)
+                ) {
+                    Text("Log Out", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Profile & Session Bottom Sheet
+    if (showProfileSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showProfileSheet = false }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(60.dp)
+                        .clip(CircleShape)
+                        .background(Emerald600),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = uiState.currentUserName.take(1).uppercase(Locale.getDefault()),
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Text(
+                    text = uiState.currentUserName,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Active Room", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(uiState.currentRoomName.ifEmpty { "Default" }, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Backend Status", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(if (uiState.isOnline) "🟢 Connected" else "Offline", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                Button(
+                    onClick = {
+                        showProfileSheet = false
+                        showLogoutDialog = true
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Logout,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Log Out", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
     }
 }
 

@@ -85,7 +85,7 @@ fun AnalyticsScreen(
             }
         }
 
-        // Budget Utilization Hero Card
+        // Spending Overview Hero Card
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -100,23 +100,21 @@ fun AnalyticsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Monthly Budget Utilization",
+                            text = "Total Spending",
                             style = MaterialTheme.typography.labelMedium,
                             color = Color(0xFF94A3B8),
                             fontWeight = FontWeight.Medium
                         )
-                        val budgetRatio = if (uiState.monthlyBudget > 0) (totalExpense / uiState.monthlyBudget).toFloat().coerceIn(0f, 1f) else 0f
-                        val percentUsed = (budgetRatio * 100).toInt()
 
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(if (budgetRatio > 0.85f) Color(0xFF7F1D1D) else Color(0xFF064E3B))
+                                .background(Color(0xFF064E3B))
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = "$percentUsed% Used",
-                                color = if (budgetRatio > 0.85f) Color(0xFFFCA5A5) else Emerald500,
+                                text = "${uiState.expenses.size} Transactions",
+                                color = Emerald500,
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold
                             )
@@ -126,44 +124,31 @@ fun AnalyticsScreen(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     Text(
-                        text = "₹${String.format(Locale.getDefault(), "%,.0f", totalExpense)} / ₹${String.format(Locale.getDefault(), "%,.0f", uiState.monthlyBudget)}",
+                        text = "₹${String.format(Locale.getDefault(), "%,.2f", totalExpense)}",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
 
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    val budgetRatio = if (uiState.monthlyBudget > 0) (totalExpense / uiState.monthlyBudget).toFloat().coerceIn(0f, 1f) else 0f
-                    LinearProgressIndicator(
-                        progress = { budgetRatio },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(10.dp)
-                            .clip(RoundedCornerShape(5.dp)),
-                        color = if (budgetRatio > 0.85f) Color(0xFFEF4444) else Emerald500,
-                        trackColor = Color(0xFF334155)
-                    )
-
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column {
-                            Text("Available", style = MaterialTheme.typography.bodySmall, color = Color(0xFF94A3B8))
+                            Text("Active Room", style = MaterialTheme.typography.bodySmall, color = Color(0xFF94A3B8))
                             Text(
-                                "₹${String.format(Locale.getDefault(), "%,.0f", uiState.monthlyBudget - totalExpense)}",
+                                uiState.currentRoomName.ifEmpty { "General" },
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = Emerald500
                             )
                         }
                         Column(horizontalAlignment = Alignment.End) {
-                            Text("Total Expenses", style = MaterialTheme.typography.bodySmall, color = Color(0xFF94A3B8))
+                            Text("Active Categories", style = MaterialTheme.typography.bodySmall, color = Color(0xFF94A3B8))
                             Text(
-                                "${uiState.expenses.size} entries",
+                                "${categoryTotals.size} Active",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White

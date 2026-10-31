@@ -98,4 +98,37 @@ class SettlementUnitTest {
         assertEquals("Alice", s.creditor)
         assertEquals(1500.0, s.amount, 0.01)
     }
+
+    @Test
+    fun testLogoutClearsAuthenticationAndState() {
+        val testScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined)
+        val viewModel = ExpenseViewModel(coroutineScope = testScope)
+        viewModel.setCurrentUserName("Alice")
+        viewModel.addMember("Alice")
+        viewModel.addMember("Bob")
+
+        viewModel.addExpense(
+            title = "Lunch",
+            amount = 600.0,
+            category = ExpenseCategory.FOOD,
+            paidBy = "Alice",
+            splitType = SplitType.EQUAL,
+            participants = listOf("Alice", "Bob"),
+            notes = "Test"
+        )
+
+        assertEquals(1, viewModel.uiState.value.expenses.size)
+
+        // Invoke logout
+        viewModel.logout()
+
+        val loggedOutState = viewModel.uiState.value
+        org.junit.Assert.assertFalse(loggedOutState.isAuthenticated)
+        assertTrue(loggedOutState.expenses.isEmpty())
+        assertTrue(loggedOutState.settlements.isEmpty())
+        assertTrue(loggedOutState.members.isEmpty())
+        assertEquals("You", loggedOutState.currentUserName)
+        assertEquals(0.0, loggedOutState.overview.totalExpense, 0.01)
+        org.junit.Assert.assertNull(com.expensecalci.app.data.api.ApiClient.authToken)
+    }
 }

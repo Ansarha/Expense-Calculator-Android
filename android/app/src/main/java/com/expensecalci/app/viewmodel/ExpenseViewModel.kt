@@ -43,6 +43,9 @@ data class ExpenseUiState(
     val currentRoomName: String = "",
     val rooms: List<RoomDto> = emptyList(),
     val currentUserName: String = "You",
+    val isAuthenticated: Boolean = true,
+    val isLoggingOut: Boolean = false,
+    val authError: String? = null,
     val isOnline: Boolean = false,
     val isLoading: Boolean = false,
     val serverUrl: String = ApiClient.baseUrl,
@@ -74,11 +77,17 @@ class ExpenseViewModel(
             val isHealthy = repository.checkServerHealth()
 
             if (isHealthy) {
+                // If user is explicitly logged out and no token exists, do not auto-login
+                if (!_uiState.value.isAuthenticated && ApiClient.authToken.isNullOrBlank()) {
+                    _uiState.update { it.copy(isOnline = true, isLoading = false) }
+                    return@launch
+                }
+
                 // Ensure authentication on backend
                 val authRes = repository.ensureAuthenticated()
-                val currentUserName = authRes.getOrNull()?.user?.name ?: "Ansarha"
+                val currentUserName = authRes.getOrNull()?.user?.name ?: if (_uiState.value.currentUserName != "You") _uiState.value.currentUserName else "Ansarha"
 
-                _uiState.update { it.copy(isOnline = true, currentUserName = currentUserName) }
+                _uiState.update { it.copy(isOnline = true, isAuthenticated = true, currentUserName = currentUserName) }
 
                 // Fetch rooms from backend
                 val roomsRes = repository.getRooms()
@@ -109,6 +118,101 @@ class ExpenseViewModel(
                 _uiState.update { it.copy(isOnline = false, isLoading = false) }
             }
         }
+    }
+
+    fun logout(allDevices: Boolean = false) {
+        ApiClient.clearAuth()
+        _uiState.update {
+            it.copy(
+                isAuthenticated = false,
+                isLoggingOut = true,
+                expenses = emptyList(),
+                settlements = emptyList(),
+                members = emptyList(),
+                rooms = emptyList(),
+                currentRoomId = "",
+                currentRoomName = "",
+                currentUserName = "You",
+                authError = null,
+                overview = FinancialOverview(
+                    totalExpense = 0.0,
+                    monthlyExpense = 0.0,
+                    availableBalance = it.monthlyBudget,
+                    adjustedBalance = it.monthlyBudget,
+                    toPay = 0.0,
+                    toReceive = 0.0,
+                    status = StabilityStatus.STABLE
+                )
+            )
+        }
+        scope.launch {
+            repository.logout(allDevices)
+            _uiState.update { it.copy(isLoggingOut = false) }
+        }
+    }
+
+    fun login(emailOrMobile: String, password: String) {
+        scope.launch {
+            _uiState.update { it.copy(isLoading = true, authError = null) }
+            val res = repository.login(emailOrMobile, password)
+            if (res.isSuccess) {
+                val tokenResp = res.getOrNull()
+                val userName = tokenResp?.user?.name ?: if (emailOrMobile.contains("@")) emailOrMobile.substringBefore("@") else emailOrMobile
+                _uiState.update {
+                    it.copy(
+                        isAuthenticated = true,
+                        isLoading = false,
+                        currentUserName = userName,
+                        authError = null
+                    )
+                }
+                syncWithBackend()
+            } else {
+                val rawMsg = res.exceptionOrNull()?.message ?: "Login failed. Please check credentials."
+                val cleanMsg = if (rawMsg.startsWith("{") || rawMsg.startsWith("[") || rawMsg.contains("HTTP")) "Invalid email or password. Please try again." else rawMsg
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        authError = cleanMsg
+                    )
+                }
+            }
+        }
+    }
+
+    fun register(name: String, email: String, password: String, mobile: String) {
+        scope.launch {
+            _uiState.update { it.copy(isLoading = true, authError = null) }
+            val res = repository.register(name, email, password, mobile)
+            if (res.isSuccess) {
+                _uiState.update {
+                    it.copy(
+                        isAuthenticated = true,
+                        isLoading = false,
+                        currentUserName = name,
+                        authError = null
+                    )
+                }
+                syncWithBackend()
+            } else {
+                val rawMsg = res.exceptionOrNull()?.message ?: "Registration failed."
+                val cleanMsg = if (rawMsg.startsWith("{") || rawMsg.startsWith("[") || rawMsg.contains("HTTP")) "Registration failed. Please check your details." else rawMsg
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        authError = cleanMsg
+                    )
+                }
+            }
+        }
+    }
+
+    fun quickDemoLogin() {
+        login("ansarha@gmail.com", "Password@123")
+    }
+
+    fun clearAuthError() {
+        _uiState.update { it.copy(authError = null) }
     }
 
     fun updateServerUrl(newUrl: String) {
